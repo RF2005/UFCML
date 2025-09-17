@@ -8,9 +8,10 @@ import sys
 import numpy as np
 import pandas as pd
 sys.path.append('/Users/ralphfrancolini/UFCML')
+sys.path.append('/Users/ralphfrancolini/UFCML/src/core')
 
-from .individual_trees import UFC_Individual_Tree_Forest
-from .advanced_ml_models import UFC_SpecializedEnsemble
+from enhanced_random_forest import EnhancedUFCRandomForest
+from enhanced_feature_engineering import EnhancedFeatureEngineer
 import joblib
 import pickle
 
@@ -41,57 +42,40 @@ class FighterProfile:
         }
 
 class FighterMatchupPredictor:
-    """Predicts UFC fight outcomes using fighter profiles and career data."""
+    """Predicts UFC fight outcomes using enhanced random forest and advanced feature engineering."""
 
     def __init__(self):
-        self.individual_forest = None
-        self.specialized_ensemble = None
+        self.enhanced_model = None
+        self.feature_engineer = None
         self.load_models()
         self.create_fighter_database()
 
     def load_models(self):
-        """Load trained models."""
+        """Load the enhanced UFC prediction model."""
         try:
-            with open('models/ufc_individual_tree_forest.pkl', 'rb') as f:
-                forest_data = pickle.load(f)
-
-            # Reconstruct the forest object from saved data
-            from .individual_trees import UFC_Individual_Tree_Forest
-            self.individual_forest = UFC_Individual_Tree_Forest()
-            if isinstance(forest_data, dict):
-                self.individual_forest.trees = forest_data.get('trees', {})
-                self.individual_forest.feature_functions = forest_data.get('feature_functions', {})
-                self.individual_forest.tree_weights = forest_data.get('tree_weights', {})
-                self.individual_forest.tree_accuracies = forest_data.get('tree_accuracies', {})
+            # Load the enhanced random forest model
+            self.enhanced_model = EnhancedUFCRandomForest.load_model('models/enhanced_ufc_random_forest.pkl')
+            if self.enhanced_model:
+                print("✅ Enhanced UFC Random Forest loaded")
+                self.feature_engineer = self.enhanced_model.feature_engineer
             else:
-                self.individual_forest = forest_data
-            print("✅ Individual forest loaded (32 trees)")
-        except Exception as e:
-            print(f"❌ Error loading individual forest: {e}")
+                print("⚠️  Enhanced model not found, creating new instance")
+                self.enhanced_model = EnhancedUFCRandomForest()
+                self.feature_engineer = EnhancedFeatureEngineer()
 
-        try:
-            with open('models/ufc_specialized_ensemble.pkl', 'rb') as f:
-                ensemble_data = pickle.load(f)
-
-            # Reconstruct the ensemble object from saved data
-            from .advanced_ml_models import UFC_SpecializedEnsemble
-            self.specialized_ensemble = UFC_SpecializedEnsemble()
-            if isinstance(ensemble_data, dict):
-                self.specialized_ensemble.striking_tree = ensemble_data.get('striking_tree')
-                self.specialized_ensemble.grappling_tree = ensemble_data.get('grappling_tree')
-                self.specialized_ensemble.positional_tree = ensemble_data.get('positional_tree')
-                self.specialized_ensemble.context_tree = ensemble_data.get('context_tree')
-                self.specialized_ensemble.tree_weights = ensemble_data.get('tree_weights', {})
-                self.specialized_ensemble.feature_functions = ensemble_data.get('feature_functions', {})
-            else:
-                self.specialized_ensemble = ensemble_data
-            print("✅ Specialized ensemble loaded (4 trees)")
         except Exception as e:
-            print(f"❌ Error loading specialized ensemble: {e}")
+            print(f"❌ Error loading enhanced model: {e}")
+            print("🔄 Creating new enhanced model instance...")
+            self.enhanced_model = EnhancedUFCRandomForest()
+            self.feature_engineer = EnhancedFeatureEngineer()
+
+            # Load and prepare data for the feature engineer
+            if self.feature_engineer.load_and_prepare_data():
+                print("✅ Feature engineer initialized with UFC data")
 
     def calculate_fighter_career_stats(self, df):
         """Calculate career statistics for all fighters from the UFC dataset."""
-        from .advanced_ml_models import load_enhanced_ufc_data
+        from advanced_ml_models import load_enhanced_ufc_data
 
         print("📊 Calculating career statistics for all fighters...")
         fighter_stats = {}
@@ -188,7 +172,7 @@ class FighterMatchupPredictor:
 
     def create_fighter_database(self):
         """Create a comprehensive database of UFC fighters from the actual dataset."""
-        from .advanced_ml_models import load_enhanced_ufc_data
+        from advanced_ml_models import load_enhanced_ufc_data
 
         # Load the UFC dataset
         df = load_enhanced_ufc_data()
@@ -653,8 +637,8 @@ class FighterMatchupPredictor:
             'referee': 'Herb Dean'
         }
 
-    def predict_matchup(self, fighter_a_name, fighter_b_name):
-        """Predict the outcome of a hypothetical matchup."""
+    def predict_matchup(self, fighter_a_name, fighter_b_name, title_fight=False, weight_class=None):
+        """Predict the outcome of a hypothetical matchup using the enhanced model."""
         if fighter_a_name not in self.fighters:
             print(f"❌ Fighter '{fighter_a_name}' not found in database")
             return None
@@ -663,104 +647,59 @@ class FighterMatchupPredictor:
             print(f"❌ Fighter '{fighter_b_name}' not found in database")
             return None
 
+        if not self.enhanced_model or not self.enhanced_model.is_trained:
+            print(f"❌ Enhanced model not loaded or trained")
+            return None
+
         fighter_a = self.fighters[fighter_a_name]
         fighter_b = self.fighters[fighter_b_name]
 
-        # Simulate fight stats
-        fight_data = self.simulate_fight_stats(fighter_a, fighter_b)
+        # Use enhanced feature engineering for prediction
+        try:
+            result = self.enhanced_model.predict_fight(
+                fighter_a_name,
+                fighter_b_name,
+                title_fight=title_fight,
+                weight_class=weight_class or fighter_a.weight_class
+            )
 
-        # Make predictions using loaded models
-        predictions = {}
-        confidences = {}
+            if result:
+                predicted_winner = result['predicted_winner']
+                confidence = result['confidence']
+                fighter_a_prob = result['fighter_a_prob']
+                fighter_b_prob = result['fighter_b_prob']
 
-        if self.individual_forest:
-            try:
-                result = self.individual_forest.predict_fight(fight_data)
-                predictions['individual_forest'] = result['forest_prediction']
-                confidences['individual_forest'] = result['forest_confidence']
-            except Exception as e:
-                print(f"❌ Individual forest failed: {e}")
-
-        if self.specialized_ensemble:
-            try:
-                result = self.specialized_ensemble.predict_fight(fight_data)
-                predictions['specialized_ensemble'] = result['ensemble_prediction']
-                confidences['specialized_ensemble'] = result['ensemble_confidence']
-            except Exception as e:
-                print(f"❌ Specialized ensemble failed: {e}")
-
-        # Meta-prediction using weighted confidence averaging with realism adjustments
-        if predictions:
-            fighter_a_total_confidence = 0
-            fighter_b_total_confidence = 0
-            total_weight = 0
-
-            # Apply realism adjustments to model confidences
-            adjusted_confidences = {}
-            for model, confidence in confidences.items():
-                # Cap extremely high confidences and add uncertainty for close fights
-                if confidence > 0.95:
-                    adjusted_confidence = 0.75 + (confidence - 0.95) * 0.4  # Max 79%
-                elif confidence < 0.05:
-                    adjusted_confidence = 0.25 - (0.05 - confidence) * 0.4  # Min 21%
+                # Add realism adjustment to confidence
+                # Cap extremely high confidences for sports predictions
+                if confidence > 0.85:
+                    adjusted_confidence = 0.75 + (confidence - 0.85) * 0.33  # Max ~80%
+                elif confidence < 0.55:
+                    adjusted_confidence = max(0.52, confidence)  # Min ~52%
                 else:
-                    adjusted_confidence = 0.4 + confidence * 0.4  # Scale to 40-80% range
+                    adjusted_confidence = confidence
 
-                adjusted_confidences[model] = adjusted_confidence
+                final_prediction = f"{predicted_winner} ({'Red Corner' if predicted_winner == fighter_a_name else 'Blue Corner'})"
+                final_confidence = adjusted_confidence
 
-            for model, prediction in predictions.items():
-                model_confidence = adjusted_confidences.get(model, 0.5)
-                weight = 1.0  # Can be adjusted to weight models differently
-
-                if 'Red Corner' in prediction or fighter_a.name in prediction:
-                    fighter_a_total_confidence += model_confidence * weight
-                else:
-                    fighter_b_total_confidence += model_confidence * weight
-
-                total_weight += weight
-
-            # Calculate competitive factor based on fight simulation
-            sig_str_diff = abs(fight_data['r_sig_str_landed'] - fight_data['b_sig_str_landed'])
-            acc_diff = abs(fight_data['r_sig_str_acc'] - fight_data['b_sig_str_acc'])
-            td_diff = abs(fight_data['r_td'] - fight_data['b_td'])
-
-            # The closer the fight stats, the lower the confidence should be
-            competitiveness = min(1.0, (sig_str_diff/20 + acc_diff/30 + td_diff/3) / 3)
-            confidence_adjustment = 0.15 + competitiveness * 0.25  # 15-40% adjustment
-
-            # Normalize confidences
-            if total_weight > 0:
-                fighter_a_avg_confidence = (fighter_a_total_confidence / total_weight) * confidence_adjustment
-                fighter_b_avg_confidence = (fighter_b_total_confidence / total_weight) * confidence_adjustment
+                return {
+                    'final_prediction': final_prediction,
+                    'final_confidence': final_confidence,
+                    'predicted_winner': predicted_winner,
+                    'fighter_a_probability': fighter_a_prob,
+                    'fighter_b_probability': fighter_b_prob,
+                    'model_confidence': confidence,
+                    'adjusted_confidence': adjusted_confidence,
+                    'fighter_a_profile': fighter_a,
+                    'fighter_b_profile': fighter_b,
+                    'features_used': result.get('features_used', {})
+                }
             else:
-                fighter_a_avg_confidence = 0.5
-                fighter_b_avg_confidence = 0.5
+                print(f"❌ Enhanced model returned no prediction")
+                return None
 
-            # Determine winner based on confidence
-            if fighter_a_avg_confidence > fighter_b_avg_confidence:
-                final_prediction = f"{fighter_a.name} (Red Corner)"
-                final_confidence = fighter_a_avg_confidence + 0.5  # Add base 50%
-            elif fighter_b_avg_confidence > fighter_a_avg_confidence:
-                final_prediction = f"{fighter_b.name} (Blue Corner)"
-                final_confidence = fighter_b_avg_confidence + 0.5  # Add base 50%
-            else:
-                final_prediction = "Split Decision"
-                final_confidence = 0.5 + max(fighter_a_avg_confidence, fighter_b_avg_confidence) * 0.2
-
-            # Cap final confidence at reasonable levels
-            final_confidence = min(0.85, max(0.52, final_confidence))
-
-            return {
-                'final_prediction': final_prediction,
-                'final_confidence': final_confidence,
-                'individual_predictions': predictions,
-                'individual_confidences': confidences,
-                'fight_simulation': fight_data,
-                'fighter_a_profile': fighter_a,
-                'fighter_b_profile': fighter_b
-            }
-
-        return None
+        except Exception as e:
+            print(f"❌ Enhanced model prediction failed: {e}")
+            return None
 
     def display_matchup_prediction(self, result):
         """Display matchup prediction results."""
@@ -768,7 +707,6 @@ class FighterMatchupPredictor:
             print("❌ Unable to generate prediction")
             return
 
-        fight_data = result['fight_simulation']
         fighter_a = result['fighter_a_profile']
         fighter_b = result['fighter_b_profile']
 
@@ -787,18 +725,21 @@ class FighterMatchupPredictor:
         print(f"\n🏆 PREDICTION: {result['final_prediction']}")
         print(f"🎯 CONFIDENCE: {result['final_confidence']:.1%}")
 
-        if result['individual_predictions']:
-            print(f"\n📊 Model Breakdown:")
-            for model, pred in result['individual_predictions'].items():
-                conf = result['individual_confidences'].get(model, 0)
-                print(f"   • {model}: {pred} ({conf:.1%})")
+        print(f"\n📊 ENHANCED MODEL BREAKDOWN:")
+        print(f"   {fighter_a.name} probability: {result['fighter_a_probability']:.1%}")
+        print(f"   {fighter_b.name} probability: {result['fighter_b_probability']:.1%}")
+        print(f"   Raw model confidence: {result['model_confidence']:.1%}")
+        print(f"   Adjusted confidence: {result['adjusted_confidence']:.1%}")
 
-        print(f"\n📈 Simulated Fight Statistics:")
-        print(f"Significant Strikes: {fight_data['r_sig_str_landed']} - {fight_data['b_sig_str_landed']}")
-        print(f"Strike Accuracy: {fight_data['r_sig_str_acc']:.1f}% - {fight_data['b_sig_str_acc']:.1f}%")
-        print(f"Takedowns: {fight_data['r_td']} - {fight_data['b_td']}")
-        print(f"Knockdowns: {fight_data['r_kd']} - {fight_data['b_kd']}")
-        print(f"Control Time: {fight_data['r_ctrl_time_sec']//60}:{fight_data['r_ctrl_time_sec']%60:02d} - {fight_data['b_ctrl_time_sec']//60}:{fight_data['b_ctrl_time_sec']%60:02d}")
+        # Show key features if available
+        if result.get('features_used'):
+            print(f"\n🔍 KEY FEATURES ANALYZED:")
+            features = result['features_used']
+            key_features = ['win_rate_advantage', 'recency_advantage', 'experience_advantage',
+                          'style_matchup_advantage', 'striking_volume_advantage']
+            for feature in key_features:
+                if feature in features and isinstance(features[feature], (int, float)):
+                    print(f"   {feature.replace('_', ' ').title()}: {features[feature]:.3f}")
 
         print("🥊" * 50)
 

@@ -26,7 +26,9 @@ from sklearn.metrics import accuracy_score, classification_report
 from sklearn.preprocessing import LabelEncoder
 import joblib
 import pickle
-from .advanced_ml_models import load_enhanced_ufc_data
+import sys
+sys.path.append('/Users/ralphfrancolini/UFCML/src/core')
+from advanced_ml_models import load_enhanced_ufc_data
 
 
 def safe_division(numerator, denominator, default=0):

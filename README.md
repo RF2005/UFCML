@@ -2,9 +2,9 @@
 
 A **unified** UFC fight prediction system using enhanced random forest with advanced feature engineering, achieving **75.7% validated accuracy** across temporal splits.
 
-## 🏗️ **Major Architecture Update (2024)**
+## 🏗️ **Architecture (2024)**
 
-**CONSOLIDATED**: Multiple overlapping systems → Single unified enhanced prediction system
+**UNIFIED SYSTEM**: Single enhanced random forest with advanced feature engineering
 **PERFORMANCE**: 75.7% average accuracy with proper regularization
 **VALIDATION**: Comprehensive backtesting across 73 temporal periods (2010-2025)
 
@@ -19,17 +19,14 @@ UFCML/
 │   └── data_analysis_plots.py          # Data noise analysis
 ├── 🔧 SUPPORTING INFRASTRUCTURE
 │   ├── src/core/
-│   │   ├── fighter_matchup_predictor.py # Updated to use unified system
-│   │   ├── individual_trees.py          # Legacy system (import fixes)
-│   │   ├── advanced_ml_models.py        # Legacy system
+│   │   ├── fighter_matchup_predictor.py # Fighter prediction interface
 │   │   └── ml_models.py                 # Basic ML models
 │   ├── src/data/                        # Data processing
 │   │   ├── data_processor.py
 │   │   └── elo_system.py
 │   └── src/utils/                       # Utility functions
-├── 📊 TRAINED MODELS
-│   ├── enhanced_ufc_random_forest.pkl  # Main unified model (20MB)
-│   └── models/                          # Legacy model files
+├── 📊 TRAINED MODEL
+│   └── enhanced_ufc_random_forest.pkl  # Main prediction model (20MB)
 ├── 📈 ANALYSIS & VALIDATION
 │   ├── ufc_backtest_results.png        # Temporal validation results
 │   ├── ufc_feature_relationships.png   # Feature analysis
@@ -64,11 +61,8 @@ predictor.display_matchup_prediction(result)
 "
 ```
 
-### **Legacy Systems (Deprecated)**
+### **Additional Tools**
 ```bash
-# Ultimate fight predictor (uses multiple systems)
-python ultimate_ufc_predictor.py
-
 # Web application
 python web/app.py
 ```
@@ -116,14 +110,14 @@ python web/app.py
 - **Cross-Validation**: 5-fold stratified validation
 - **Backtesting**: Walk-forward temporal validation
 
-## 🎯 **Model Comparison**
+## 🎯 **System Performance**
 
-| System | Accuracy | Overfitting | Status |
-|--------|----------|-------------|---------|
-| Enhanced Random Forest | **77.0%** | **1.4%** | ✅ **Active** |
-| Individual Trees (67) | 63-84% | 3-13% | ⚠️ Legacy |
-| Specialized Ensemble (4) | ~70% | ~8% | ⚠️ Legacy |
-| Basic Random Forest | 65% | 15%+ | 🚫 Deprecated |
+| Metric | Value | Status |
+|--------|-------|---------|
+| **Test Accuracy** | **77.0%** | ✅ Excellent |
+| **Overfitting Gap** | **1.4%** | ✅ Very Low |
+| **Cross-Validation** | **78.5% ± 0.5%** | ✅ Consistent |
+| **Backtest Average** | **75.7% ± 2.9%** | ✅ Stable |
 
 ## 🧪 **Testing & Validation**
 
@@ -145,10 +139,6 @@ print(f'Test Accuracy: {results[\"test_accuracy\"]:.1%}')
 
 # Run comprehensive backtesting
 python comprehensive_backtest.py
-
-# Legacy system tests
-python tests/test_individual_trees.py
-python tests/test_advanced_models.py
 ```
 
 ## 📈 **Data Analysis**
@@ -161,10 +151,10 @@ The system includes comprehensive data analysis showing:
 
 ## 🛠️ **Development Notes**
 
-### **Architecture Evolution**
-- **v1.0**: Multiple overlapping systems (67 trees + 4 ensembles + enhanced)
-- **v2.0**: Unified architecture with single enhanced system
-- **Performance**: Improved from inconsistent results to validated 75.7%
+### **Architecture**
+- **Unified System**: Single enhanced random forest with advanced feature engineering
+- **Performance**: Validated 75.7% accuracy across temporal periods
+- **Design**: Clean, modular, production-ready implementation
 
 ### **Code Quality**
 - **Modular Design**: Clean separation of concerns
@@ -182,17 +172,21 @@ The system includes comprehensive data analysis showing:
 
 ---
 
-## 📋 **Migration Guide**
+## 📋 **Usage Guide**
 
-**From Legacy Systems**:
+**Main System**:
 ```python
-# OLD: Multiple system approach
-from src.core.individual_trees import UFC_Individual_Tree_Forest
-from src.core.advanced_ml_models import UFC_SpecializedEnsemble
-
-# NEW: Unified system
 from enhanced_random_forest import EnhancedUFCRandomForest
 from enhanced_feature_engineering import EnhancedFeatureEngineer
+
+# Initialize and train
+engineer = EnhancedFeatureEngineer()
+model = EnhancedUFCRandomForest()
+model.feature_engineer = engineer
+
+# Train and validate
+enhanced_df = engineer.create_enhanced_training_data()
+results = model.train(enhanced_df)
 ```
 
 **Performance Expectations**:
@@ -202,4 +196,4 @@ from enhanced_feature_engineering import EnhancedFeatureEngineer
 
 ---
 
-*Last Updated: September 2024 - Major architectural consolidation*
+*Last Updated: September 2024 - Unified enhanced random forest system*

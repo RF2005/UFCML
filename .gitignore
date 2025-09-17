@@ -1,13 +1,12 @@
 # UFC ML Project .gitignore
 
-# Model files (large binary files)
-*.pkl
-models/
+# Model files are now tracked with Git LFS
+# *.pkl files are handled by LFS - see .gitattributes
 
 # Data files (potentially large/private)
 *.csv
 *.xlsx
-data/
+/data/
 
 # Python
 __pycache__/

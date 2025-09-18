@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UFC Fight Predictor</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <h1>UFC FIGHT PREDICTOR</h1>
+                <p>Powered by AI & Machine Learning</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="prediction-card">
+                <h2>🥊 PREDICT THE FIGHT</h2>
+
+                <form id="prediction-form" class="fight-form">
+                    <div class="fighters-section">
+                        <div class="fighter-input">
+                            <label for="fighter_a">Fighter A (Red Corner)</label>
+                            <input type="text" id="fighter_a" name="fighter_a"
+                                   placeholder="e.g., Jon Jones" required>
+                        </div>
+
+                        <div class="vs-divider">
+                            <span>VS</span>
+                        </div>
+
+                        <div class="fighter-input">
+                            <label for="fighter_b">Fighter B (Blue Corner)</label>
+                            <input type="text" id="fighter_b" name="fighter_b"
+                                   placeholder="e.g., Stipe Miocic" required>
+                        </div>
+                    </div>
+
+                    <div class="fight-options">
+                        <div class="option-group">
+                            <label for="weight_class">Weight Class</label>
+                            <select id="weight_class" name="weight_class">
+                                <option value="">Select Weight Class</option>
+                                <option value="Heavyweight">Heavyweight</option>
+                                <option value="Light Heavyweight">Light Heavyweight</option>
+                                <option value="Middleweight">Middleweight</option>
+                                <option value="Welterweight">Welterweight</option>
+                                <option value="Lightweight">Lightweight</option>
+                                <option value="Featherweight">Featherweight</option>
+                                <option value="Bantamweight">Bantamweight</option>
+                                <option value="Flyweight">Flyweight</option>
+                                <option value="Strawweight">Strawweight</option>
+                            </select>
+                        </div>
+
+                        <div class="option-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="title_fight" name="title_fight">
+                                <span class="checkmark"></span>
+                                Title Fight
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="predict-btn" id="predict-btn">
+                        <span>PREDICT FIGHT OUTCOME</span>
+                    </button>
+                </form>
+
+                <!-- Loading Spinner -->
+                <div id="loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Analyzing fighters...</p>
+                </div>
+
+                <!-- Results Section -->
+                <div id="results" class="results" style="display: none;">
+                    <h3>PREDICTION RESULTS</h3>
+
+                    <div class="winner-announcement">
+                        <div class="winner-text">
+                            <span class="winner-label">PREDICTED WINNER</span>
+                            <span class="winner-name" id="winner-name"></span>
+                        </div>
+                        <div class="confidence">
+                            <span class="confidence-label">CONFIDENCE</span>
+                            <span class="confidence-value" id="confidence-value"></span>
+                        </div>
+                    </div>
+
+                    <div class="fight-breakdown">
+                        <div class="fighter-result" id="fighter-a-result">
+                            <div class="fighter-header">
+                                <span class="fighter-name" id="fighter-a-name"></span>
+                                <span class="corner-label">(Red Corner)</span>
+                            </div>
+                            <div class="probability-bar">
+                                <div class="probability-fill red" id="fighter-a-bar"></div>
+                                <span class="probability-text" id="fighter-a-prob"></span>
+                            </div>
+                        </div>
+
+                        <div class="fighter-result" id="fighter-b-result">
+                            <div class="fighter-header">
+                                <span class="fighter-name" id="fighter-b-name"></span>
+                                <span class="corner-label">(Blue Corner)</span>
+                            </div>
+                            <div class="probability-bar">
+                                <div class="probability-fill blue" id="fighter-b-bar"></div>
+                                <span class="probability-text" id="fighter-b-prob"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="fight-details" id="fight-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Weight Class:</span>
+                            <span class="detail-value" id="result-weight-class"></span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Title Fight:</span>
+                            <span class="detail-value" id="result-title-fight"></span>
+                        </div>
+                    </div>
+
+                    <button class="new-prediction-btn" onclick="resetForm()">
+                        PREDICT ANOTHER FIGHT
+                    </button>
+                </div>
+
+                <!-- Error Section -->
+                <div id="error" class="error" style="display: none;">
+                    <h3>⚠️ PREDICTION ERROR</h3>
+                    <p id="error-message"></p>
+                    <button class="try-again-btn" onclick="resetForm()">
+                        TRY AGAIN
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2025 UFC Fight Predictor | AI-Powered Sports Analytics</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

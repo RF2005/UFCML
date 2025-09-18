@@ -67,6 +67,30 @@ predictor.display_matchup_prediction(result)
 python web/app.py
 ```
 
+## 🌐 Deploying the Web App
+
+The Flask interface runs anywhere you can install Python. This repo now ships with:
+
+- `requirements.txt` – runtime dependencies (Flask, scikit-learn, etc.)
+- `Procfile` – starts `gunicorn web.app:app`
+- `runtime.txt` – pins Python 3.10 for Heroku/Render style hosts
+- `models/enhanced_ufc_random_forest.pkl` – calibrated model (tracked via Git LFS)
+
+### Render / Railway / Fly.io
+1. Connect the repo to your platform of choice.
+2. Build command: `pip install -r requirements.txt`.
+3. Start command: `gunicorn web.app:app`.
+4. (Optional) Set `MODEL_PATH` if you relocate the model file.
+
+### Manual deployment (any VPS/container)
+```bash
+git clone https://github.com/<your-org>/UFCML.git
+cd UFCML
+pip install -r requirements.txt
+gunicorn web.app:app --bind 0.0.0.0:8000
+```
+Expose the chosen port through your reverse proxy and the app is available publicly.
+
 ## 📊 **Performance Metrics**
 
 ### **Enhanced Random Forest (Main System)**

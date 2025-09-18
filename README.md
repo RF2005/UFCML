@@ -78,8 +78,8 @@ The Flask interface runs anywhere you can install Python. This repo now ships wi
 
 ### Render / Railway / Fly.io
 1. Connect the repo to your platform of choice.
-2. Build command: `pip install -r requirements.txt`.
-3. Start command: `gunicorn web.app:app`.
+2. **Build command:** `./render-build.sh` (this installs Git LFS, pulls the model, then installs dependencies).
+3. **Start command:** `gunicorn web.app:app`.
 4. (Optional) Set `MODEL_PATH` if you relocate the model file.
 
 ### Manual deployment (any VPS/container)

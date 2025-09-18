@@ -157,6 +157,14 @@ tree, features, accuracy, results = create_individual_decision_tree(
 4. **Cleaner Data**: Removed outcome-leaking features
 5. **Better Ensemble**: Diverse random seeds improve forest performance
 
+## 🎯 Probability Calibration Check (Latest Run)
+
+- Compared **sigmoid** vs **isotonic** calibration on the validation fold
+  - Sigmoid: val Brier **0.2451**, val log-loss **0.6833**, test Brier **0.2443**
+  - Isotonic: val Brier **0.2302**, val log-loss **0.6514**, test Brier **0.2406**
+- Automatic picker selected **isotonic** (lower validation Brier) while logging both curves for diagnostics
+- Calibrated confidence metrics now saved with the model (Brier/log-loss, curve points, bin counts)
+
 ---
 
 **Status**: ✅ All improvements implemented and tested

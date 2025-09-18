@@ -18,7 +18,11 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, brier_score_loss, log_loss
+from sklearn.inspection import permutation_importance
+from sklearn.calibration import calibration_curve
+from sklearn.linear_model import LogisticRegression
+from sklearn.isotonic import IsotonicRegression
 from sklearn.preprocessing import LabelEncoder
 import joblib
 import pickle
@@ -26,20 +30,20 @@ from datetime import datetime, timedelta
 import sys
 sys.path.append('/Users/ralphfrancolini/UFCML')
 
-from enhanced_feature_engineering import EnhancedFeatureEngineer
+from .enhanced_feature_engineering import EnhancedFeatureEngineer
 
 class EnhancedUFCRandomForest:
     """Enhanced Random Forest predictor with advanced features."""
 
-    def __init__(self, n_estimators=100, max_depth=6, min_samples_split=20,
-                 min_samples_leaf=10, max_features='sqrt', random_state=42):
+    def __init__(self, n_estimators=200, max_depth=4, min_samples_split=60,
+                 min_samples_leaf=25, max_features=0.5, random_state=42):
         self.model = RandomForestClassifier(
             n_estimators=n_estimators,
             max_depth=max_depth,
             min_samples_split=min_samples_split,
             min_samples_leaf=min_samples_leaf,
             max_features=max_features,  # Regularization: use subset of features
-            max_samples=0.8,  # Bootstrap sampling regularization
+            max_samples=0.6,  # Smaller bootstrap to reduce variance and memorization
             random_state=random_state,
             n_jobs=-1,
             class_weight='balanced'  # Handle class imbalance
@@ -48,6 +52,10 @@ class EnhancedUFCRandomForest:
         self.feature_columns = None
         self.label_encoders = {}
         self.is_trained = False
+        self.permutation_importance_ = None
+        self.calibrator_ = None
+        self.calibration_info_ = None
+        self.calibrator_type = None
 
     def prepare_features(self, df):
         """Prepare features for training/prediction."""
@@ -126,18 +134,104 @@ class EnhancedUFCRandomForest:
         print("🔄 Training Regularized Random Forest...")
         self.model.fit(X_train, y_train)
 
-        # Progressive evaluation
-        train_pred = self.model.predict(X_train)
-        val_pred = self.model.predict(X_val)
-        test_pred = self.model.predict(X_test)
+        val_proba_raw = self.model.predict_proba(X_val)[:, 1]
+        test_proba_raw = self.model.predict_proba(X_test)[:, 1]
+        train_proba_raw = self.model.predict_proba(X_train)[:, 1]
+
+        sigmoid_calibrator = LogisticRegression(max_iter=1000, class_weight='balanced')
+        sigmoid_calibrator.fit(val_proba_raw.reshape(-1, 1), y_val)
+        val_probs_sig = sigmoid_calibrator.predict_proba(val_proba_raw.reshape(-1, 1))[:, 1]
+        test_probs_sig = sigmoid_calibrator.predict_proba(test_proba_raw.reshape(-1, 1))[:, 1]
+        train_probs_sig = sigmoid_calibrator.predict_proba(train_proba_raw.reshape(-1, 1))[:, 1]
+
+        iso_calibrator = IsotonicRegression(out_of_bounds='clip')
+        iso_calibrator.fit(val_proba_raw, y_val)
+        val_probs_iso = iso_calibrator.predict(val_proba_raw)
+        test_probs_iso = iso_calibrator.predict(test_proba_raw)
+        train_probs_iso = iso_calibrator.predict(train_proba_raw)
+
+        def _cal_stats(probs):
+            return np.clip(np.column_stack([1 - probs, probs]), 1e-7, 1 - 1e-7)
+
+        stats = {}
+        candidate_metrics = {}
+        candidate_curves = {}
+        for name, (train_probs, val_probs, test_probs) in {
+            'sigmoid': (train_probs_sig, val_probs_sig, test_probs_sig),
+            'isotonic': (train_probs_iso, val_probs_iso, test_probs_iso),
+        }.items():
+            stats[name] = {
+                'train_proba': _cal_stats(train_probs),
+                'val_proba': _cal_stats(val_probs),
+                'test_proba': _cal_stats(test_probs),
+            }
+            candidate_metrics[name] = {
+                'val_brier': brier_score_loss(y_val, val_probs),
+                'test_brier': brier_score_loss(y_test, test_probs),
+                'val_logloss': log_loss(y_val, _cal_stats(val_probs)),
+                'test_logloss': log_loss(y_test, _cal_stats(test_probs)),
+            }
+            frac_pos, mean_pred = calibration_curve(y_val, val_probs, n_bins=10)
+            candidate_curves[name] = {
+                'frac_pos': frac_pos,
+                'mean_pred': mean_pred,
+            }
+
+        best_name = min(candidate_metrics, key=lambda n: candidate_metrics[n]['val_brier'])
+        self.calibrator_type = best_name
+        if best_name == 'sigmoid':
+            self.calibrator_ = sigmoid_calibrator
+        else:
+            self.calibrator_ = iso_calibrator
+
+        print(f"🧮 Calibration method selected: {best_name}")
+
+        chosen = stats[best_name]
+        train_proba = chosen['train_proba']
+        val_proba_cal = chosen['val_proba']
+        test_proba = chosen['test_proba']
+
+        train_pred = (train_proba[:, 1] >= 0.5).astype(int)
+        val_pred = (val_proba_cal[:, 1] >= 0.5).astype(int)
+        test_pred = (test_proba[:, 1] >= 0.5).astype(int)
 
         train_accuracy = accuracy_score(y_train, train_pred)
         val_accuracy = accuracy_score(y_val, val_pred)
         test_accuracy = accuracy_score(y_test, test_pred)
 
+        val_brier_raw = brier_score_loss(y_val, val_proba_raw)
+        val_brier_cal = candidate_metrics[best_name]['val_brier']
+        test_brier_cal = candidate_metrics[best_name]['test_brier']
+        val_logloss_raw = log_loss(y_val, np.column_stack([1 - val_proba_raw, val_proba_raw]))
+        val_logloss_cal = candidate_metrics[best_name]['val_logloss']
+        test_logloss_cal = candidate_metrics[best_name]['test_logloss']
+
+        bins = np.linspace(0.0, 1.0, 11)
+        bin_counts, _ = np.histogram(val_proba_cal[:, 1], bins=bins)
+
+        self.calibration_info_ = {
+            'method': best_name,
+            'val_brier_raw': val_brier_raw,
+            'val_brier_cal': val_brier_cal,
+            'test_brier_cal': test_brier_cal,
+            'val_logloss_raw': val_logloss_raw,
+            'val_logloss_cal': val_logloss_cal,
+            'test_logloss_cal': test_logloss_cal,
+            'calibration_curve_frac_pos': candidate_curves[best_name]['frac_pos'],
+            'calibration_curve_mean_pred': candidate_curves[best_name]['mean_pred'],
+            'calibration_bins': bins,
+            'bin_counts': bin_counts,
+            'candidate_metrics': candidate_metrics,
+            'candidate_curves': candidate_curves,
+        }
+
         print(f"✅ Training accuracy: {train_accuracy:.1%}")
         print(f"📊 Validation accuracy: {val_accuracy:.1%}")
         print(f"🎯 Test accuracy: {test_accuracy:.1%}")
+        print(f"⚖️  Val Brier (raw→cal): {val_brier_raw:.3f} → {val_brier_cal:.3f}")
+        print(f"⚖️  Test Brier (cal): {test_brier_cal:.3f}")
+        print(f"📉 Val LogLoss (raw→cal): {val_logloss_raw:.3f} → {val_logloss_cal:.3f}")
+        print(f"📉 Test LogLoss (cal): {test_logloss_cal:.3f}")
 
         # Detailed overfitting analysis
         train_val_gap = train_accuracy - val_accuracy
@@ -192,6 +286,31 @@ class EnhancedUFCRandomForest:
         print(f"\n📋 Detailed Test Results:")
         print(classification_report(y_test, test_pred, target_names=['Fighter B Wins', 'Fighter A Wins']))
 
+        # Permutation importance on validation split to confirm feature reliance
+        print(f"\n♻️  Permutation Importance (validation set):")
+        perm_result = permutation_importance(
+            self.model,
+            X_val,
+            y_val,
+            n_repeats=8,
+            random_state=42,
+            n_jobs=1,  # Single-threaded to avoid sandbox semaphore limits
+            scoring='accuracy'
+        )
+
+        perm_sorted_idx = perm_result.importances_mean.argsort()[::-1]
+        self.permutation_importance_ = {
+            'feature': [self.feature_columns[i] for i in perm_sorted_idx],
+            'mean': perm_result.importances_mean[perm_sorted_idx],
+            'std': perm_result.importances_std[perm_sorted_idx]
+        }
+
+        for i in range(min(10, len(self.feature_columns))):
+            idx = perm_sorted_idx[i]
+            mean_drop = perm_result.importances_mean[idx]
+            std_drop = perm_result.importances_std[idx]
+            print(f"  {i+1:2d}. {self.feature_columns[idx]:30} Δacc={mean_drop:.3f} ± {std_drop:.3f}")
+
         self.is_trained = True
 
         return {
@@ -203,7 +322,9 @@ class EnhancedUFCRandomForest:
             'feature_importance': feature_importance,
             'train_val_gap': train_val_gap,
             'val_test_gap': val_test_gap,
-            'train_test_gap': train_test_gap
+            'train_test_gap': train_test_gap,
+            'permutation_importance': self.permutation_importance_,
+            'calibration': self.calibration_info_,
         }
 
     def predict_fight(self, fighter_a, fighter_b, fight_date=None, title_fight=False, weight_class=None):
@@ -242,9 +363,20 @@ class EnhancedUFCRandomForest:
         # Reorder columns to match training
         X = X[self.feature_columns]
 
-        # Make prediction
-        prediction = self.model.predict(X)[0]
-        probability = self.model.predict_proba(X)[0]
+        raw_prob = self.model.predict_proba(X)[:, 1]
+        if self.calibrator_ is not None:
+            if self.calibrator_type == 'sigmoid':
+                calibrated_prob = self.calibrator_.predict_proba(raw_prob.reshape(-1, 1))[:, 1]
+            elif self.calibrator_type == 'isotonic':
+                calibrated_prob = self.calibrator_.predict(raw_prob)
+            else:
+                calibrated_prob = raw_prob
+            calibrated_prob = np.clip(calibrated_prob, 1e-7, 1 - 1e-7)
+            probability = np.column_stack([1 - calibrated_prob, calibrated_prob])[0]
+        else:
+            probability = np.column_stack([1 - raw_prob, raw_prob])[0]
+
+        prediction = 1 if probability[1] >= 0.5 else 0
 
         predicted_winner = fighter_a if prediction == 1 else fighter_b
         confidence = max(probability)
@@ -267,7 +399,11 @@ class EnhancedUFCRandomForest:
             'model': self.model,
             'feature_columns': self.feature_columns,
             'label_encoders': self.label_encoders,
-            'feature_engineer': self.feature_engineer
+            'feature_engineer': self.feature_engineer,
+            'calibrator': self.calibrator_,
+            'calibrator_type': self.calibrator_type,
+            'calibration_info': self.calibration_info_,
+            'permutation_importance': self.permutation_importance_,
         }
 
         with open(filepath, 'wb') as f:
@@ -288,6 +424,10 @@ class EnhancedUFCRandomForest:
             instance.feature_columns = model_data['feature_columns']
             instance.label_encoders = model_data['label_encoders']
             instance.feature_engineer = model_data['feature_engineer']
+            instance.calibrator_ = model_data.get('calibrator')
+            instance.calibrator_type = model_data.get('calibrator_type')
+            instance.calibration_info_ = model_data.get('calibration_info')
+            instance.permutation_importance_ = model_data.get('permutation_importance')
             instance.is_trained = True
 
             print(f"✅ Enhanced model loaded from {filepath}")
@@ -313,13 +453,13 @@ def train_enhanced_model():
     # Create enhanced dataset
     enhanced_df = engineer.create_enhanced_training_data()
 
-    # Initialize and train model with regularization
+    # Initialize and train model with optimized parameters
     model = EnhancedUFCRandomForest(
-        n_estimators=100,   # Fewer trees to reduce overfitting
-        max_depth=6,        # Shallower trees for better generalization
-        min_samples_split=20,  # Require more samples for splits
-        min_samples_leaf=10,   # Require more samples in leaves
-        max_features='sqrt'    # Use only sqrt(n_features) per tree
+        n_estimators=200,   # Many trees to smooth predictions
+        max_depth=4,        # Shallower trees for stronger regularization
+        min_samples_split=60,  # Require substantial evidence before splitting
+        min_samples_leaf=25,   # Larger leaves reduce variance and memorization
+        max_features=0.5       # Restrict per-tree feature usage
     )
 
     # Attach feature engineer to model
@@ -360,6 +500,11 @@ def main():
     print(f"📊 Test Accuracy: {results['test_accuracy']:.1%}")
     print(f"🎯 CV Accuracy: {results['cv_accuracy']:.1%} (±{results['cv_std']:.1%})")
     print(f"📈 Train-Test Gap: {results['train_test_gap']:.1%}")
+    if results.get('calibration'):
+        cal = results['calibration']
+        print(f"🧮 Calibration: {cal.get('method', 'n/a')}")
+        print(f"⚖️  Test Brier (calibrated): {cal['test_brier_cal']:.3f}")
+        print(f"📉 Test LogLoss (calibrated): {cal['test_logloss_cal']:.3f}")
     print(f"💾 Model saved to: models/enhanced_ufc_random_forest.pkl")
 
     print(f"\n🚀 Ready for enhanced predictions!")

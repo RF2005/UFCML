@@ -19,7 +19,10 @@ from datetime import datetime, timedelta
 import sys
 sys.path.append('/Users/ralphfrancolini/UFCML')
 
-from .enhanced_feature_engineering import EnhancedFeatureEngineer
+try:
+    from .enhanced_feature_engineering import EnhancedFeatureEngineer
+except ImportError:
+    from enhanced_feature_engineering import EnhancedFeatureEngineer
 
 class RegularizedUFCRandomForest:
     """Random Forest with feature importance regularization to prevent memorization."""

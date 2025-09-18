@@ -30,7 +30,10 @@ from datetime import datetime, timedelta
 import sys
 sys.path.append('/Users/ralphfrancolini/UFCML')
 
-from .enhanced_feature_engineering import EnhancedFeatureEngineer
+try:
+    from .enhanced_feature_engineering import EnhancedFeatureEngineer  # package-style import
+except ImportError:  # running as standalone module
+    from enhanced_feature_engineering import EnhancedFeatureEngineer
 
 class EnhancedUFCRandomForest:
     """Enhanced Random Forest predictor with advanced features."""

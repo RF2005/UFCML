@@ -1,0 +1,50 @@
+[
+  {
+    "prediction_id": "Jon_Jones_vs_Stipe_Miocic_20251001",
+    "fighter_a": "Jon Jones",
+    "fighter_b": "Stipe Miocic",
+    "fight_date": "2025-10-01",
+    "event_name": "UFC Example Event",
+    "title_fight": true,
+    "weight_class": "Heavyweight",
+    "predicted_winner": "Jon Jones",
+    "confidence": 0.6873018701758592,
+    "fighter_a_probability": 0.6873018701758592,
+    "fighter_b_probability": 0.3126981298241408,
+    "prediction_date": "2025-09-18 00:29:38",
+    "actual_result": null,
+    "result_verified": false
+  },
+  {
+    "prediction_id": "Israel_Adesanya_vs_Alex_Pereira_20251001",
+    "fighter_a": "Israel Adesanya",
+    "fighter_b": "Alex Pereira",
+    "fight_date": "2025-10-01",
+    "event_name": "UFC Example Event",
+    "title_fight": false,
+    "weight_class": "Middleweight",
+    "predicted_winner": "Alex Pereira",
+    "confidence": 0.560496012964586,
+    "fighter_a_probability": 0.43950398703541416,
+    "fighter_b_probability": 0.560496012964586,
+    "prediction_date": "2025-09-18 00:29:38",
+    "actual_result": null,
+    "result_verified": false
+  },
+  {
+    "prediction_id": "Jon_Jones_vs_Stipe_Miocic_20251001",
+    "fighter_a": "Jon Jones",
+    "fighter_b": "Stipe Miocic",
+    "fight_date": "2025-10-01",
+    "event_name": null,
+    "title_fight": false,
+    "weight_class": null,
+    "predicted_winner": "Jon Jones",
+    "confidence": 0.683939088815493,
+    "fighter_a_probability": 0.683939088815493,
+    "fighter_b_probability": 0.31606091118450697,
+    "prediction_date": "2025-09-18 00:35:13",
+    "actual_result": null,
+    "result_verified": false
+  }
+]

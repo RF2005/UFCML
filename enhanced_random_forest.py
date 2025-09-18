@@ -51,8 +51,8 @@ class EnhancedUFCRandomForest:
 
     def prepare_features(self, df):
         """Prepare features for training/prediction."""
-        # Identify feature columns (exclude metadata)
-        exclude_cols = ['fighter_a', 'fighter_b', 'winner', 'target', 'weight_class']
+        # Identify feature columns (exclude metadata and datetime)
+        exclude_cols = ['fighter_a', 'fighter_b', 'winner', 'target', 'weight_class', 'date']
         feature_cols = [col for col in df.columns if col not in exclude_cols]
 
         X = df[feature_cols].copy()
@@ -359,7 +359,7 @@ def main():
     print(f"✅ Model trained successfully!")
     print(f"📊 Test Accuracy: {results['test_accuracy']:.1%}")
     print(f"🎯 CV Accuracy: {results['cv_accuracy']:.1%} (±{results['cv_std']:.1%})")
-    print(f"📈 Overfitting Gap: {results['overfitting_gap']:.1%}")
+    print(f"📈 Train-Test Gap: {results['train_test_gap']:.1%}")
     print(f"💾 Model saved to: models/enhanced_ufc_random_forest.pkl")
 
     print(f"\n🚀 Ready for enhanced predictions!")

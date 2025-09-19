@@ -39,18 +39,26 @@ class EnhancedUFCRandomForest:
     """Enhanced Random Forest predictor with advanced features."""
 
     def __init__(self, n_estimators=200, max_depth=4, min_samples_split=60,
-                 min_samples_leaf=25, max_features=0.5, random_state=42):
-        self.model = RandomForestClassifier(
-            n_estimators=n_estimators,
-            max_depth=max_depth,
-            min_samples_split=min_samples_split,
-            min_samples_leaf=min_samples_leaf,
-            max_features=max_features,  # Regularization: use subset of features
-            max_samples=0.6,  # Smaller bootstrap to reduce variance and memorization
-            random_state=random_state,
-            n_jobs=-1,
-            class_weight='balanced'  # Handle class imbalance
-        )
+                 min_samples_leaf=25, max_features='sqrt', max_samples=0.5,
+                 min_samples_split_fraction=0.03, min_samples_leaf_fraction=0.01,
+                 random_state=42):
+        self.base_params = {
+            'n_estimators': n_estimators,
+            'max_depth': max_depth,
+            'min_samples_split': min_samples_split,
+            'min_samples_leaf': min_samples_leaf,
+            'max_features': max_features,
+            'max_samples': max_samples,
+            'random_state': random_state,
+            'n_jobs': -1,
+            'class_weight': 'balanced'
+        }
+        self.model = RandomForestClassifier(**self.base_params)
+        self.min_samples_split_fraction = min_samples_split_fraction
+        self.min_samples_leaf_fraction = min_samples_leaf_fraction
+        self.max_samples = max_samples
+        self.max_features = max_features
+        self.random_state = random_state
         self.feature_engineer = None
         self.feature_columns = None
         self.label_encoders = {}
@@ -59,6 +67,48 @@ class EnhancedUFCRandomForest:
         self.calibrator_ = None
         self.calibration_info_ = None
         self.calibrator_type = None
+
+    def _update_dynamic_regularization(self, train_size):
+        """Adapt regularization strength based on dataset size."""
+        effective_min_split = max(
+            self.base_params['min_samples_split'],
+            int(train_size * self.min_samples_split_fraction)
+        )
+        effective_min_leaf = max(
+            self.base_params['min_samples_leaf'],
+            int(train_size * self.min_samples_leaf_fraction)
+        )
+
+        if isinstance(self.max_features, float):
+            effective_max_features = min(max(self.max_features, 0.2), 0.6)
+        elif self.max_features == 'auto':
+            # Force auto to behave like sqrt for classification stability
+            effective_max_features = 'sqrt'
+        else:
+            effective_max_features = self.max_features
+
+        if isinstance(self.max_samples, float):
+            effective_max_samples = min(max(self.max_samples, 0.3), 0.75)
+        else:
+            effective_max_samples = self.max_samples
+
+        # Guard against degenerate settings
+        effective_min_split = max(2, effective_min_split)
+        effective_min_leaf = max(1, effective_min_leaf)
+
+        self.model.set_params(
+            min_samples_split=effective_min_split,
+            min_samples_leaf=effective_min_leaf,
+            max_features=effective_max_features,
+            max_samples=effective_max_samples,
+        )
+
+        return {
+            'min_samples_split': effective_min_split,
+            'min_samples_leaf': effective_min_leaf,
+            'max_features': effective_max_features,
+            'max_samples': effective_max_samples,
+        }
 
     def prepare_features(self, df):
         """Prepare features for training/prediction."""
@@ -134,6 +184,14 @@ class EnhancedUFCRandomForest:
         print(f"📉 Test set: {len(X_test)} fights")
 
         # Train model with regularization
+        reg_settings = self._update_dynamic_regularization(len(X_train))
+        print(
+            "🛡️ Regularization settings → "
+            f"min_split={reg_settings['min_samples_split']}, "
+            f"min_leaf={reg_settings['min_samples_leaf']}, "
+            f"max_features={reg_settings['max_features']}, "
+            f"max_samples={reg_settings['max_samples']}"
+        )
         print("🔄 Training Regularized Random Forest...")
         self.model.fit(X_train, y_train)
 

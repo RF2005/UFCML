@@ -2,7 +2,7 @@
 
 A **unified** UFC fight prediction system using enhanced random forest with advanced feature engineering, achieving **75.7% validated accuracy** across temporal splits.
 
-## 🏗️ **Architecture (2024)**
+## 🏗️ **Architecture (2025)**
 
 **UNIFIED SYSTEM**: Single enhanced random forest with advanced feature engineering
 **PERFORMANCE**: 75.7% average accuracy with proper regularization
@@ -220,4 +220,4 @@ results = model.train(enhanced_df)
 
 ---
 
-*Last Updated: September 2024 - Unified enhanced random forest system*
+*Last Updated: September 2025 - Unified enhanced random forest system*

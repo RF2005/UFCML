@@ -7,13 +7,15 @@ Simple Flask web UI for UFC fight predictions with black/red UFC theming.
 """
 
 from flask import Flask, render_template, request, jsonify
-import sys
 import os
-import pickle
+import sys
+from pathlib import Path
 from datetime import datetime
 
-# Add parent directory to path
-sys.path.append('/Users/ralphfrancolini/UFCML')
+# Resolve project root and ensure it's on sys.path so modules load in any environment
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from enhanced_random_forest import EnhancedUFCRandomForest
 
@@ -22,12 +24,22 @@ app = Flask(__name__)
 # Global model variable
 model = None
 
+# Allow overriding the model path via environment variable
+DEFAULT_MODEL_PATH = PROJECT_ROOT / 'models' / 'enhanced_ufc_random_forest.pkl'
+MODEL_PATH = Path(os.environ.get('MODEL_PATH', DEFAULT_MODEL_PATH))
+
 def load_model():
     """Load the trained UFC prediction model."""
     global model
     try:
-        model_path = '/Users/ralphfrancolini/UFCML/models/enhanced_ufc_random_forest.pkl'
-        model = EnhancedUFCRandomForest.load_model(model_path)
+        if not MODEL_PATH.exists():
+            raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
+
+        absolute_path = MODEL_PATH.resolve()
+        file_size_mb = absolute_path.stat().st_size / (1024 * 1024)
+        print(f"📦 Loading model from {absolute_path} ({file_size_mb:.2f} MB)")
+
+        model = EnhancedUFCRandomForest.load_model(str(absolute_path))
         print("✅ UFC prediction model loaded successfully")
         return True
     except Exception as e:

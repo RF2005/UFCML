@@ -1,223 +1,98 @@
 # UFC Machine Learning Project
 
-A **unified** UFC fight prediction system using enhanced random forest with advanced feature engineering, achieving **75.7% validated accuracy** across temporal splits.
+Predicting UFC fight outcomes is noisy, data-scarce, and extremely sensitive to leakage. This repository implements a realistic end-to-end pipeline built around a regularized random forest plus aggressive feature engineering and temporal validation. The goal is not headline accuracy, but a transparent benchmark you can iterate on without fooling yourself.
 
-## 🏗️ **Architecture (2025)**
+## Highlights
+- **Regularized random forest** with engineered matchup features, calibrated probabilities, and overfitting diagnostics.
+- **Strict temporal pipeline** (`tests/validation/proper_temporal_holdout_test.py`) that freezes fighter profiles before a holdout period to avoid leakage.
+- **Backtesting utilities** for multi-era walk-forward evaluation (`tests/comprehensive_backtest.py`, `backtest/comprehensive_backtest.py`).
+- **Interactive predictor** (`src/core/fighter_matchup_predictor.py`) for quick what-if matchups using the trained model.
 
-**UNIFIED SYSTEM**: Single enhanced random forest with advanced feature engineering
-**PERFORMANCE**: 75.7% average accuracy with proper regularization
-**VALIDATION**: Comprehensive backtesting across 73 temporal periods (2010-2025)
+## Current Performance (March 2025 data freeze)
+All results come from the temporal split inside `tests/validation/proper_temporal_holdout_test.py`, using data up to 10 March 2025 for feature construction and fights after that date for holdout evaluation.
 
-## 📁 Project Structure
+| Metric                                   | Value  | Notes |
+|------------------------------------------|--------|-------|
+| Training accuracy (temporal split)       | 70.1%  | Chronological train segment |
+| Validation accuracy                      | 61.0%  | Held-out chronological slice |
+| Test accuracy                            | 59.6%  | Final temporal test slice |
+| Proper temporal holdout accuracy         | 60.3%  | Fights after the freeze date |
+| 5-fold CV (stratified, shuffled)         | 59.3% ± 1.9% | For sanity only; temporal metrics take priority |
 
+Anything well above ~60% should be viewed with suspicion unless you can rule out leakage or bad labeling. These numbers are realistic for matchup-only models with historical stats.
+
+## Repository Layout (selected folders)
 ```
 UFCML/
-├── 🎯 CORE UNIFIED SYSTEM
-│   ├── enhanced_random_forest.py       # Main prediction model (77% accuracy)
-│   ├── enhanced_feature_engineering.py # Advanced feature extraction
-│   ├── comprehensive_backtest.py       # Temporal validation framework
-│   └── data_analysis_plots.py          # Data noise analysis
-├── 🔧 SUPPORTING INFRASTRUCTURE
-│   ├── src/core/
-│   │   ├── fighter_matchup_predictor.py # Fighter prediction interface
-│   │   └── ml_models.py                 # Basic ML models
-│   ├── src/data/                        # Data processing
-│   │   ├── data_processor.py
-│   │   └── elo_system.py
-│   └── src/utils/                       # Utility functions
-├── 📊 TRAINED MODEL
-│   └── enhanced_ufc_random_forest.pkl  # Main prediction model (20MB)
-├── 📈 ANALYSIS & VALIDATION
-│   ├── ufc_backtest_results.png        # Temporal validation results
-│   ├── ufc_feature_relationships.png   # Feature analysis
-│   └── ufc_noise_analysis.png          # Data noise assessment
-├── 🧪 TESTING & DEMOS
-│   ├── tests/                           # Test scripts
-│   ├── demos/                           # Demo scripts
-│   └── web/                             # Web application
-└── 📚 DOCUMENTATION
-    └── docs/                            # Documentation
+├── enhanced_random_forest.py          # Main training/CLI script (regularized RF)
+├── enhanced_feature_engineering.py    # Feature generation and fighter profiles
+├── tests/
+│   ├── validation/
+│   │   └── proper_temporal_holdout_test.py  # Leak-proof temporal evaluation
+│   ├── comprehensive_backtest.py      # Walk-forward testing entry point
+│   └── ...                            # Additional diagnostics
+├── src/
+│   ├── core/
+│   │   ├── fighter_matchup_predictor.py  # Interactive prediction interface
+│   │   └── ml_models.py                  # Baseline models and helpers
+│   ├── data/                            # Data ingestion utilities
+│   └── utils/                           # Shared helpers
+└── models/
+    └── enhanced_ufc_random_forest.pkl  # Saved model (Git LFS)
 ```
 
-## 🚀 Quick Start
+## Setup
+1. **Clone & virtual environment**
+   ```bash
+   git clone https://github.com/<you>/UFCML.git
+   cd UFCML
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+2. **Provide the dataset**
+   `EnhancedFeatureEngineer` expects a CSV with detailed fight stats. By default `src/core/advanced_ml_models.load_enhanced_ufc_data` looks at `~/Desktop/ufc_data.csv`. Update that path or set up a symlink to point to your copy.
 
-### **Unified System (Recommended)**
-```bash
-# Train and validate the enhanced model
-python enhanced_random_forest.py
+## Training & Evaluation
+- **Baseline training run**
+  ```bash
+  python enhanced_random_forest.py
+  ```
+  Outputs temporal train/validation/test metrics, calibrates probabilities, and saves the calibrated model to `models/enhanced_ufc_random_forest.pkl`.
 
-# Run comprehensive backtesting
-python comprehensive_backtest.py
+- **Leak-proof temporal holdout**
+  ```bash
+  python tests/validation/proper_temporal_holdout_test.py
+  ```
+  Rebuilds fighter profiles using only pre-cutoff data, retrains the model, and scores the post-cutoff fights. These outputs are the definitive performance numbers referenced above.
 
-# Analyze data characteristics
-python data_analysis_plots.py
+- **Comprehensive walk-forward backtest**
+  ```bash
+  python tests/comprehensive_backtest.py
+  ```
+  Iterates through historical time windows to show how performance drifts across eras.
 
-# Interactive fighter predictions
-python -c "
-from src.core.fighter_matchup_predictor import FighterMatchupPredictor
-predictor = FighterMatchupPredictor()
-result = predictor.predict_matchup('Jon Jones', 'Stipe Miocic')
-predictor.display_matchup_prediction(result)
-"
-```
+- **Interactive predictions**
+  ```bash
+  python -c "from src.core.fighter_matchup_predictor import FighterMatchupPredictor
+pred = FighterMatchupPredictor()
+res = pred.predict_matchup('Jon Jones', 'Stipe Miocic')
+pred.display_matchup_prediction(res)"
+  ```
+  (Requires the trained model artefact.)
 
-### **Additional Tools**
-```bash
-# Web application
-python web/app.py
-```
+## Key Implementation Details
+- **Feature engineering** blends matchup-level differentials (win rate, striking pace, control time, etc.) with profile momentum. Profiles are frozen at the temporal cutoff when evaluating future fights.
+- **Regularization**: 200 estimators, `max_depth=4`, `min_samples_split=60`, `min_samples_leaf=25`, and per-tree feature subsampling. Additional dynamic guards inflate these thresholds when data is scarce.
+- **Calibration & diagnostics**: Isotonic vs. sigmoid calibration is chosen by validation Brier score; the script reports Brier, log-loss, and train/validation/test gaps to make overfitting obvious.
 
-## 🌐 Deploying the Web App
+## Data Ethics & Caution
+Sports models degrade quickly as fighters age, camps change, or odds move. The holdout set above covers only 267 fights after March 2025; expect wide confidence intervals. Treat this repository as a research sandbox, not a production betting system.
 
-The Flask interface runs anywhere you can install Python. This repo now ships with:
+## Roadmap
+- Trim or reweight low-signal features flagged by permutation importance.
+- Automate temporal cross-validation so each board decision is backed by out-of-sample evidence.
+- Integrate betting market data for calibration and ROI analysis.
+- Explore lightweight ensembling (e.g., averaging the RF with a calibrated logistic) once stability is proven.
 
-- `requirements.txt` – runtime dependencies (Flask, scikit-learn, etc.)
-- `Procfile` – starts `gunicorn web.app:app`
-- `runtime.txt` – pins Python 3.10 for Heroku/Render style hosts
-- `models/enhanced_ufc_random_forest.pkl` – calibrated model (tracked via Git LFS)
-
-### Render / Railway / Fly.io
-1. Connect the repo to your platform of choice.
-2. **Build command:** `./render-build.sh` (this installs Git LFS, pulls the model, then installs dependencies).
-3. **Start command:** `gunicorn web.app:app`.
-4. (Optional) Set `MODEL_PATH` if you relocate the model file.
-
-### Manual deployment (any VPS/container)
-```bash
-git clone https://github.com/<your-org>/UFCML.git
-cd UFCML
-pip install -r requirements.txt
-gunicorn web.app:app --bind 0.0.0.0:8000
-```
-Expose the chosen port through your reverse proxy and the app is available publicly.
-
-## 📊 **Performance Metrics**
-
-### **Enhanced Random Forest (Main System)**
-- **Test Accuracy**: 77.0% (regularized, realistic)
-- **Cross-Validation**: 78.5% ± 0.5%
-- **Overfitting Gap**: 1.4% (excellent generalization)
-- **Features**: 17 advanced engineered features
-
-### **Temporal Backtesting Results**
-- **Average Accuracy**: 75.7% ± 2.9% across 73 periods
-- **Time Range**: 2010-2025 UFC eras
-- **Consistency**: Very stable (CV = 0.038)
-- **Performance Trend**: Consistent across different UFC eras
-
-### **Top Predictive Features**
-1. **Win Rate Advantage** (35.7% importance)
-2. **Recency Advantage** (26.5% importance)
-3. **Striking Volume Advantage** (9.3% importance)
-4. **Performance Trend Diff** (6.0% importance)
-5. **Experience Advantage** (5.7% importance)
-
-## 🔧 **Key Technical Features**
-
-### **Enhanced Feature Engineering**
-- **Weighted Recent Performance**: Last 3 fights get 60% weight
-- **Style Matchup Matrix**: Striker vs Grappler dynamics
-- **Temporal Features**: Days since last fight, activity level
-- **Experience Differentials**: Fight count and career trajectory
-- **Physical Advantages**: Height, reach, age differentials
-
-### **Proper Regularization**
-- **Controlled Trees**: 100 estimators (down from 200)
-- **Shallow Depth**: 6 levels (down from 12)
-- **Sample Requirements**: 20 min split, 10 min leaf
-- **Feature Subsampling**: sqrt(n_features) per tree
-- **Bootstrap Sampling**: 80% data per tree
-
-### **Validation Methodology**
-- **3-way Split**: Train (70%) / Validation (10%) / Test (20%)
-- **Temporal Ordering**: Chronological splits prevent leakage
-- **Cross-Validation**: 5-fold stratified validation
-- **Backtesting**: Walk-forward temporal validation
-
-## 🎯 **System Performance**
-
-| Metric | Value | Status |
-|--------|-------|---------|
-| **Test Accuracy** | **77.0%** | ✅ Excellent |
-| **Overfitting Gap** | **1.4%** | ✅ Very Low |
-| **Cross-Validation** | **78.5% ± 0.5%** | ✅ Consistent |
-| **Backtest Average** | **75.7% ± 2.9%** | ✅ Stable |
-
-## 🧪 **Testing & Validation**
-
-```bash
-# Test the unified system
-python -c "
-from enhanced_random_forest import EnhancedUFCRandomForest
-from enhanced_feature_engineering import EnhancedFeatureEngineer
-
-engineer = EnhancedFeatureEngineer()
-engineer.load_and_prepare_data()
-enhanced_df = engineer.create_enhanced_training_data()
-
-model = EnhancedUFCRandomForest()
-model.feature_engineer = engineer
-results = model.train(enhanced_df)
-print(f'Test Accuracy: {results[\"test_accuracy\"]:.1%}')
-"
-
-# Run comprehensive backtesting
-python comprehensive_backtest.py
-```
-
-## 📈 **Data Analysis**
-
-The system includes comprehensive data analysis showing:
-- **Moderate noise levels** (R² = 0.306)
-- **Non-linear relationships** favoring tree-based models
-- **Feature correlations** and importance rankings
-- **Temporal consistency** across UFC eras
-
-## 🛠️ **Development Notes**
-
-### **Architecture**
-- **Unified System**: Single enhanced random forest with advanced feature engineering
-- **Performance**: Validated 75.7% accuracy across temporal periods
-- **Design**: Clean, modular, production-ready implementation
-
-### **Code Quality**
-- **Modular Design**: Clean separation of concerns
-- **Proper Validation**: No data leakage, temporal splits
-- **Comprehensive Testing**: 73 temporal validation periods
-- **Professional Structure**: Production-ready codebase
-
-## 🚀 **Future Improvements**
-
-- **Hyperparameter Optimization**: Grid search on validation sets
-- **Neural Networks**: Explore deep learning approaches
-- **External Data**: Incorporate betting odds, physical measurements
-- **Real-time Updates**: Live fighter performance tracking
-- **Web Interface**: Update to use unified system
-
----
-
-## 📋 **Usage Guide**
-
-**Main System**:
-```python
-from enhanced_random_forest import EnhancedUFCRandomForest
-from enhanced_feature_engineering import EnhancedFeatureEngineer
-
-# Initialize and train
-engineer = EnhancedFeatureEngineer()
-model = EnhancedUFCRandomForest()
-model.feature_engineer = engineer
-
-# Train and validate
-enhanced_df = engineer.create_enhanced_training_data()
-results = model.train(enhanced_df)
-```
-
-**Performance Expectations**:
-- **Realistic Sports Prediction**: 75-77% accuracy
-- **Proper Regularization**: <5% overfitting gap
-- **Consistent Results**: Validated across time periods
-
----
-
-*Last Updated: September 2025 - Unified enhanced random forest system*
+Questions or contributions welcome—open an issue or PR with reproducible metrics from the provided scripts.

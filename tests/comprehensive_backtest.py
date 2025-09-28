@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 sys.path.append('/Users/ralphfrancolini/UFCML')
-from enhanced_random_forest import EnhancedUFCRandomForest
-from enhanced_feature_engineering import EnhancedFeatureEngineer
+from src.core.enhanced_random_forest import EnhancedUFCRandomForest
+from src.core.enhanced_feature_engineering import EnhancedFeatureEngineer
 
 class UFCBacktester:
     """Comprehensive backtesting system for UFC predictions."""

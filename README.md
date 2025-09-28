@@ -45,20 +45,13 @@ UFCML/
 │   │   ├── proper_temporal_holdout_test.py   # Single-split temporal holdout (gold standard)
 │   │   ├── enhanced_temporal_backtesting.py  # Rolling temporal backtesting
 │   │   └── true_fighter_holdout_test.py      # Complete fighter separation test
-│   ├── comprehensive_backtest.py     # Walk-forward testing across eras
-│   ├── test_advanced_models.py       # Unit tests for advanced models
-│   ├── test_overfitting_fixes.py     # Overfitting prevention tests
-│   └── test_individual_trees.py      # Individual tree testing
+│   └── comprehensive_backtest.py     # Walk-forward testing across eras
 ├── analysis/                          # Data analysis and visualizations
 │   ├── data_analysis_plots.py         # Analysis plotting utilities
 │   └── ufc_features_focused.png       # Feature correlation visualization
-├── backtest/                          # Backtesting utilities
-│   ├── realistic_backtest.py          # Betting scenario simulations
-│   └── simple_backtest.py             # Basic temporal backtesting
 ├── models/                            # Trained model artifacts
 │   └── enhanced_ufc_random_forest.pkl # Main enhanced model (Git LFS)
 ├── web/                               # Web interface components
-├── demos/                             # Demo scripts and examples
 ├── deployment/                        # Deployment configurations
 ├── scripts/                           # Utility scripts
 └── archive/                           # Archived/legacy components

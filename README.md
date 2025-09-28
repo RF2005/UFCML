@@ -60,8 +60,8 @@ UFCML/
 ├── web/                               # Web interface components
 ├── demos/                             # Demo scripts and examples
 ├── deployment/                        # Deployment configurations
-├── docs/                              # Documentation
-└── outputs/                           # Generated outputs and results
+├── scripts/                           # Utility scripts
+└── archive/                           # Archived/legacy components
 ```
 
 ## Setup

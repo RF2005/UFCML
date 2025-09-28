@@ -4,8 +4,10 @@ Predicting UFC fight outcomes is noisy, data-scarce, and extremely sensitive to 
 
 ## Highlights
 - **Regularized random forest** with engineered matchup features, calibrated probabilities, and overfitting diagnostics.
-- **Strict temporal pipeline** (`tests/validation/proper_temporal_holdout_test.py`) that freezes fighter profiles before a holdout period to avoid leakage.
-- **Backtesting utilities** for multi-era walk-forward evaluation (`tests/comprehensive_backtest.py`, `backtest/comprehensive_backtest.py`).
+- **Dual temporal validation system**:
+  - **Single-split temporal holdout** (`tests/validation/proper_temporal_holdout_test.py`) that freezes fighter profiles before a holdout period to avoid leakage
+  - **Rolling temporal backtesting** (`tests/validation/enhanced_temporal_backtesting.py`) that validates model stability across multiple historical periods
+- **Walk-forward backtesting** (`tests/comprehensive_backtest.py`) for multi-era evaluation.
 - **Interactive predictor** (`src/core/fighter_matchup_predictor.py`) for quick what-if matchups using the trained model.
 
 ## Current Performance (March 2025 data freeze)
@@ -21,24 +23,45 @@ All results come from the temporal split inside `tests/validation/proper_tempora
 
 Anything well above ~60% should be viewed with suspicion unless you can rule out leakage or bad labeling. These numbers are realistic for matchup-only models with historical stats.
 
-## Repository Layout (selected folders)
+## Repository Layout
 ```
 UFCML/
-├── enhanced_random_forest.py          # Main training/CLI script (regularized RF)
-├── enhanced_feature_engineering.py    # Feature generation and fighter profiles
-├── tests/
-│   ├── validation/
-│   │   └── proper_temporal_holdout_test.py  # Leak-proof temporal evaluation
-│   ├── comprehensive_backtest.py      # Walk-forward testing entry point
-│   └── ...                            # Additional diagnostics
+├── main.py                            # Main entry point
+├── requirements.txt                   # Python dependencies
 ├── src/
-│   ├── core/
-│   │   ├── fighter_matchup_predictor.py  # Interactive prediction interface
-│   │   └── ml_models.py                  # Baseline models and helpers
-│   ├── data/                            # Data ingestion utilities
-│   └── utils/                           # Shared helpers
-└── models/
-    └── enhanced_ufc_random_forest.pkl  # Saved model (Git LFS)
+│   ├── core/                          # Core ML components
+│   │   ├── enhanced_random_forest.py         # Main enhanced random forest model
+│   │   ├── enhanced_feature_engineering.py   # Advanced feature engineering
+│   │   ├── regularized_random_forest.py      # Regularized random forest
+│   │   ├── fighter_matchup_predictor.py      # Interactive prediction interface
+│   │   ├── advanced_ml_models.py             # Specialized ML models
+│   │   ├── individual_trees.py               # Individual decision trees
+│   │   ├── ultimate_ufc_predictor.py         # Ultimate predictor interface
+│   │   └── ml_models.py                      # Baseline models and helpers
+│   ├── data/                          # Data ingestion utilities
+│   └── utils/                         # Shared helper functions
+├── tests/                             # Validation and testing
+│   ├── validation/
+│   │   ├── proper_temporal_holdout_test.py   # Single-split temporal holdout (gold standard)
+│   │   ├── enhanced_temporal_backtesting.py  # Rolling temporal backtesting
+│   │   └── true_fighter_holdout_test.py      # Complete fighter separation test
+│   ├── comprehensive_backtest.py     # Walk-forward testing across eras
+│   ├── test_advanced_models.py       # Unit tests for advanced models
+│   ├── test_overfitting_fixes.py     # Overfitting prevention tests
+│   └── test_individual_trees.py      # Individual tree testing
+├── analysis/                          # Data analysis and visualizations
+│   ├── data_analysis_plots.py         # Analysis plotting utilities
+│   └── ufc_features_focused.png       # Feature correlation visualization
+├── backtest/                          # Backtesting utilities
+│   ├── realistic_backtest.py          # Betting scenario simulations
+│   └── simple_backtest.py             # Basic temporal backtesting
+├── models/                            # Trained model artifacts
+│   └── enhanced_ufc_random_forest.pkl # Main enhanced model (Git LFS)
+├── web/                               # Web interface components
+├── demos/                             # Demo scripts and examples
+├── deployment/                        # Deployment configurations
+├── docs/                              # Documentation
+└── outputs/                           # Generated outputs and results
 ```
 
 ## Setup
@@ -54,23 +77,49 @@ UFCML/
    `EnhancedFeatureEngineer` expects a CSV with detailed fight stats. By default `src/core/advanced_ml_models.load_enhanced_ufc_data` looks at `~/Desktop/ufc_data.csv`. Update that path or set up a symlink to point to your copy.
 
 ## Training & Evaluation
+
+### Core Validation Methods
+The repository implements multiple validation approaches to ensure robust, realistic performance estimates:
+
+#### 1. Single-Split Temporal Holdout (Gold Standard)
+```bash
+python tests/validation/proper_temporal_holdout_test.py
+```
+- **Purpose**: Test real-world prediction capability with frozen fighter knowledge
+- **Method**: Single temporal split at March 10, 2025
+- **Key Feature**: Fighter profiles frozen at cutoff (no future data leakage)
+- **Result**: Definitive performance numbers referenced in metrics table above
+
+#### 2. Rolling Temporal Backtesting (Stability Analysis)
+```bash
+python tests/validation/enhanced_temporal_backtesting.py
+```
+- **Purpose**: Validate model stability across different historical periods
+- **Method**: Multiple rolling windows with strict temporal gaps
+- **Key Feature**: Detects model degradation over time and era-specific performance
+- **Result**: Comprehensive stability analysis across historical periods
+
+#### 3. True Fighter Holdout (Generalization Test)
+```bash
+python tests/validation/true_fighter_holdout_test.py
+```
+- **Purpose**: Test generalization to completely unknown fighters
+- **Method**: 20% of fighters held out entirely from training
+- **Key Feature**: Complete fighter separation between train/test sets
+- **Result**: Tests if model learns transferable patterns vs memorizes specific fighters
+
+### Training & Quick Testing
 - **Baseline training run**
   ```bash
-  python enhanced_random_forest.py
+  python src/core/enhanced_random_forest.py
   ```
   Outputs temporal train/validation/test metrics, calibrates probabilities, and saves the calibrated model to `models/enhanced_ufc_random_forest.pkl`.
 
-- **Leak-proof temporal holdout**
-  ```bash
-  python tests/validation/proper_temporal_holdout_test.py
-  ```
-  Rebuilds fighter profiles using only pre-cutoff data, retrains the model, and scores the post-cutoff fights. These outputs are the definitive performance numbers referenced above.
-
-- **Comprehensive walk-forward backtest**
+- **Walk-forward backtest**
   ```bash
   python tests/comprehensive_backtest.py
   ```
-  Iterates through historical time windows to show how performance drifts across eras.
+  Multi-era walk-forward validation across historical periods.
 
 - **Interactive predictions**
   ```bash

@@ -25,7 +25,7 @@ import warnings
 
 sys.path.append('/Users/ralphfrancolini/UFCML')
 from future_fight_predictor import FutureFightPredictor
-from out_of_sample_testing import OutOfSampleTester
+from tests.validation.proper_temporal_holdout_test import ProperTemporalHoldoutTester
 
 class LiveValidationMonitor:
     """Continuously monitor and validate UFC prediction model performance."""

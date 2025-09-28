@@ -389,7 +389,7 @@ class EnhancedUFCRandomForest:
         }
 
     def predict_fight(self, fighter_a, fighter_b, fight_date=None, title_fight=False, weight_class=None):
-        """Predict outcome of a specific fight."""
+        """Predict outcome of a specific fight with order-invariant prediction."""
         if not self.is_trained:
             print("❌ Model not trained yet")
             return None
@@ -398,56 +398,91 @@ class EnhancedUFCRandomForest:
             print("❌ Feature engineer not available")
             return None
 
-        # Extract features
-        features = self.feature_engineer.extract_enhanced_features(
+        # Make predictions with both fighter orders to ensure consistency
+        # This fixes the order-dependent bug by averaging both predictions
+
+        # Prediction 1: fighter_a vs fighter_b
+        features_ab = self.feature_engineer.extract_enhanced_features(
             fighter_a, fighter_b, fight_date, title_fight, weight_class
         )
+        feature_df_ab = pd.DataFrame([features_ab])
+        X_ab = self.prepare_features(feature_df_ab)
 
-        # Convert to DataFrame
-        feature_df = pd.DataFrame([features])
+        # Prediction 2: fighter_b vs fighter_a (swapped)
+        features_ba = self.feature_engineer.extract_enhanced_features(
+            fighter_b, fighter_a, fight_date, title_fight, weight_class
+        )
+        feature_df_ba = pd.DataFrame([features_ba])
+        X_ba = self.prepare_features(feature_df_ba)
 
-        # Prepare features (same as training)
-        X = self.prepare_features(feature_df)
+        # Ensure feature order matches training for both predictions
+        for X in [X_ab, X_ba]:
+            if set(X.columns) != set(self.feature_columns):
+                missing_cols = set(self.feature_columns) - set(X.columns)
+                extra_cols = set(X.columns) - set(self.feature_columns)
 
-        # Ensure feature order matches training
-        if set(X.columns) != set(self.feature_columns):
-            missing_cols = set(self.feature_columns) - set(X.columns)
-            extra_cols = set(X.columns) - set(self.feature_columns)
+                # Add missing columns with default values
+                for col in missing_cols:
+                    X[col] = 0
 
-            # Add missing columns with default values
-            for col in missing_cols:
-                X[col] = 0
-
-            # Remove extra columns
-            X = X.drop(columns=extra_cols, errors='ignore')
+                # Remove extra columns
+                for col in extra_cols:
+                    if col in X.columns:
+                        X.drop(columns=[col], inplace=True)
 
         # Reorder columns to match training
-        X = X[self.feature_columns]
+        X_ab = X_ab[self.feature_columns]
+        X_ba = X_ba[self.feature_columns]
 
-        raw_prob = self.model.predict_proba(X)[:, 1]
-        if self.calibrator_ is not None:
-            if self.calibrator_type == 'sigmoid':
-                calibrated_prob = self.calibrator_.predict_proba(raw_prob.reshape(-1, 1))[:, 1]
-            elif self.calibrator_type == 'isotonic':
-                calibrated_prob = self.calibrator_.predict(raw_prob)
+        # Get raw probabilities for both orders
+        raw_prob_ab = self.model.predict_proba(X_ab)[:, 1]  # P(fighter_a wins | A vs B)
+        raw_prob_ba = self.model.predict_proba(X_ba)[:, 1]  # P(fighter_b wins | B vs A)
+
+        # Apply calibration if available
+        def _apply_calibration(raw_prob):
+            if self.calibrator_ is not None:
+                if self.calibrator_type == 'sigmoid':
+                    calibrated = self.calibrator_.predict_proba(raw_prob.reshape(-1, 1))[:, 1]
+                elif self.calibrator_type == 'isotonic':
+                    calibrated = self.calibrator_.predict(raw_prob)
+                else:
+                    calibrated = raw_prob
+                calibrated = np.clip(calibrated, 1e-7, 1 - 1e-7)
+                return calibrated
             else:
-                calibrated_prob = raw_prob
-            calibrated_prob = np.clip(calibrated_prob, 1e-7, 1 - 1e-7)
-            probability = np.column_stack([1 - calibrated_prob, calibrated_prob])[0]
+                return raw_prob
+
+        cal_prob_ab = _apply_calibration(raw_prob_ab)[0]  # P(fighter_a wins)
+        cal_prob_ba = _apply_calibration(raw_prob_ba)[0]  # P(fighter_b wins)
+
+        # Convert to consistent probabilities
+        # cal_prob_ab is P(A wins when A vs B)
+        # cal_prob_ba is P(B wins when B vs A)
+        # For consistency: P(A wins) + P(B wins) should = 1
+
+        # Average the probabilities for order-invariant prediction
+        fighter_a_prob = (cal_prob_ab + (1 - cal_prob_ba)) / 2
+        fighter_b_prob = 1 - fighter_a_prob
+
+        # Determine winner and confidence
+        if fighter_a_prob >= fighter_b_prob:
+            predicted_winner = fighter_a
+            confidence = fighter_a_prob
         else:
-            probability = np.column_stack([1 - raw_prob, raw_prob])[0]
-
-        prediction = 1 if probability[1] >= 0.5 else 0
-
-        predicted_winner = fighter_a if prediction == 1 else fighter_b
-        confidence = max(probability)
+            predicted_winner = fighter_b
+            confidence = fighter_b_prob
 
         return {
             'predicted_winner': predicted_winner,
             'confidence': confidence,
-            'fighter_a_prob': probability[1],
-            'fighter_b_prob': probability[0],
-            'features_used': features
+            'fighter_a_prob': fighter_a_prob,
+            'fighter_b_prob': fighter_b_prob,
+            'features_used': features_ab,  # Return features from first prediction
+            'order_consistency_check': {
+                'ab_prediction': cal_prob_ab,
+                'ba_prediction': 1 - cal_prob_ba,
+                'difference': abs(cal_prob_ab - (1 - cal_prob_ba))
+            }
         }
 
     def save_model(self, filepath='enhanced_ufc_random_forest.pkl'):
